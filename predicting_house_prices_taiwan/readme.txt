@@ -21,4 +21,6 @@ An indicator variable for location with three levels: Urban1, Urban2, and Rural
 
 The model adjusted R^2 is 0.7657.
 
+The PDF files will load on GitHub and demonstrate the analysis and code.
+
 Original Dataset can be found at: https://archive.ics.uci.edu/ml/datasets/Real+estate+valuation+data+set 
