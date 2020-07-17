@@ -1,0 +1,790 @@
+---
+title: "Analysis"
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+library(leaps)
+library(ggplot2)
+library(glmnet)
+library(tidyverse)
+library(corrplot)
+library(magrittr)
+library(readxl)
+library(lubridate)
+library(ggmap)
+library(sp)
+library(rgdal)
+library(geosphere)
+library(gridExtra)
+library(car)
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE, warning = FALSE)
+```
+
+# Sub-problem 1: load and summarize the data (20 points)
+
+```{r load_data}
+
+real_estate = read_excel("Real estate valuation data set.xlsx")
+
+colnames(real_estate) = c(
+  "trans_num",
+  "trans_date",
+  "house_age",
+  "dist_mrt",
+  "num_conven",
+  "lat",
+  "long",
+  "price_per_area"
+)
+
+real_estate = real_estate %>%
+  mutate(date = date_decimal(trans_date)) %>%
+  select(-trans_num) %>%
+  arrange(price_per_area)
+
+summary(real_estate)
+
+pairs(real_estate)
+
+```
+
+We first explore the general relationships between variables with a pair plot. Our primary interest at this time is in examining how the outcome variable, price per area, interacts with the variables. We see that price per area seems to be fairly evenly distributed across dates, somewhat positively increasing with number of convenience stores, somewhat decreasing with distance from an MRT station, and there seems to be a very weak negative correlation with house age. Price per area's correlation with latitude and longitute is difficult to assess from the graphs. 
+
+Latitude and Longitude do not behave like typical continuous variables since from domain knowledge we know that these indicate geographic locations when taken together and so we hypothesize at this time that to get useful information from these two variables we will need to consider them together. We do some work now to explore a combination of latitude and longitude. 
+
+We find the location of the observations on a map and then we try to identify observations which are close together. We do this due to prior domain knowledge about real estate price clustering: in brief, houses in a neighborhood tend to have price fluctuations together as neighborhoods become more or less desirable to live in due to some changes in attributes. This is useful because we can likely capture lots of implicit information in our model if we identify neighborhoods well. 
+
+```{r explore_lat_long}
+real_estate %>%
+  qmplot(long, lat, data = ., color = I("red"), size = I(3), darken = 0.3)
+```
+
+We see that there is a mix of rural and what seems to be more urban houses in our dataset. It is likely that these urban vs rural houses will have different implicit market characteristics and so our crudest level of separation may be at this level rural vs urban, but we may explore additional separation that could be important if there are additional distinct characteristics within the rural and urban categories. We use a k-means algorithm with 8 centers to segment the data and we will aggregate up later for analysis and test appropriateness using cross-validation. 
+```{r identify_neighborhoods}
+set.seed(4)
+real_estate = real_estate %>%
+  mutate(cluster = kmeans(real_estate[,c("lat","long")], centers = 8, nstart = 25) %$% factor(cluster))
+
+taiwan_plot = real_estate %>%
+  qmplot(long, lat, data = ., size = I(3), darken = 0.3) +
+  geom_point(aes(x = long, y = lat, color = cluster))
+
+taiwan_plot
+
+```
+
+We focus now on the other three variables: number of convenience stores nearby, the distance from the nearest MRT station, and the house age. 
+
+```{r explore_continuous_var}
+
+conv_plot = real_estate %>%
+  ggplot(aes(x = num_conven, y = price_per_area)) +
+  geom_point()
+
+mrt_plot = real_estate %>%
+  ggplot(aes(x = dist_mrt, y = price_per_area)) +
+  geom_point()
+
+houseage_plot = real_estate %>%
+  ggplot(aes(x = house_age, y = price_per_area)) +
+  geom_point()
+
+conv_plot
+
+mrt_plot
+
+houseage_plot
+
+
+```
+
+We see from the graphs confirmation of our previous conclusions from the pair plots. The data between MRT distance and price per area, and between house age and price per area seem clustered together rather than spread across the axes. We investigate if a log transformation will spread the data more effectively for regression analysis.
+
+```{r explore_log_continous}
+
+# Log Transforms
+
+conv_plot = real_estate %>%
+  ggplot(aes(x = num_conven, y = log(1+price_per_area))) +
+  geom_point()
+
+mrt_plot = real_estate %>%
+  ggplot(aes(x = log(1+dist_mrt), y = log(1+price_per_area))) +
+  geom_point()
+
+houseage_plot = real_estate %>%
+  ggplot(aes(x = log(1+house_age), y = log(1+price_per_area))) +
+  geom_point()
+
+conv_plot
+
+mrt_plot
+
+houseage_plot
+
+
+```
+
+The data seems be better distributed in the case of house age and price per area, as well as for MRT distance and price per area. The transformed number of convenience stores doesn't seem to be particularly changed relative to the untransformed version. We explore correlations between untransformed versions of all variables and between transformed versions of all variables.
+
+```{r explore_correlations}
+
+corr = cor(real_estate %>% 
+             select(
+               house_age,
+               dist_mrt,
+               num_conven,
+               price_per_area,
+               trans_date,
+               lat,
+               long
+             ), method = "pearson")
+colnames(corr) = c("House Age", "Dist to MRT", "Number of Conv", "Price per Area", "Date", "Latitude", "Longitude")
+rownames(corr) = c("House Age", "Dist to MRT", "Number of Conv", "Price per Area", "Date", "Latitude", "Longitude")
+
+corrplot(corr,
+         type = "full",
+         order = "alphabet",
+         tl.col = "black",
+         tl.srt = 45,
+         title = "Correlation Between Variables",
+         mar = c(0,0,2,0))
+
+corr
+
+corr = cor(real_estate %>% 
+             select(
+               house_age,
+               dist_mrt,
+               num_conven,
+               price_per_area,
+               trans_date,
+               lat,
+               long
+             ) %>%
+             mutate(
+               house_age = log(1 + house_age),
+               dist_mrt = log(1 + dist_mrt),
+               price_per_area = log(1 + price_per_area),
+               num_conven = log(1 + num_conven),
+               trans_date = log(1 + trans_date),
+               lat = log(1 + lat),
+               long = log(1 + long)
+             ), method = "pearson")
+colnames(corr) = c("House Age", "Dist to MRT", "Number of Conv", "Price per Area", "Date", "Latitude", "Longitude")
+rownames(corr) = c("House Age", "Dist to MRT", "Number of Conv", "Price per Area", "Date", "Latitude", "Longitude")
+
+corrplot(corr,
+         type = "full",
+         order = "alphabet",
+         tl.col = "black",
+         tl.srt = 45,
+         title = "Correlation Between Variables with Log Transform",
+         mar = c(0,0,2,0))
+
+corr 
+
+real_estate = real_estate %>%
+  mutate(
+    house_age = log(1 + house_age),
+    dist_mrt = log(1 + dist_mrt),
+    price_per_area = log(1 + price_per_area),
+    num_conven = log(1 + num_conven),
+    lat = log(1 + lat),
+    long = log(1 + long)
+  )
+
+```
+
+We see that all of the correlations with the outcome variable grow stronger in magnitude. We also notice a slight increase in correlation between house age and MRT distance, but we will assume this is neglible at this stage. We therefore conclude that we will use the log-transformed versions of these variables for the analysis.
+
+We look at the distribution of the log transformed price per area to check for outliers.
+
+```{r outlier_check}
+
+real_estate %>% 
+  ggplot(aes(x = price_per_area)) +
+  geom_histogram() +
+  theme_bw()
+
+```
+
+We see what appears to be two significant outliers to the data. This may be cause for concern but we will revisit this later.
+
+We next explore how data is distributed across time by looking at the average price by month-year in our dataset.
+
+```{r explore_dates}
+
+date_plot = real_estate %>%
+  group_by(month = floor_date(date, unit = "month")) %>%
+  summarise(avg = mean(price_per_area)) %>%
+  ggplot(aes(x = month, y = avg)) +
+  geom_bar(stat = "identity") + 
+  scale_x_datetime(date_labels = "%b %y", breaks = "month")
+
+date_plot
+
+```
+
+We don't see any meaningful information here about prices across date and we notice two months have no data. From here, including the correlation results, we conclude that date is simply not a useful predictor for price. 
+
+# Sub-problem 2: multiple linear regression model (25 points)
+
+```{r regression_exploration}
+
+reg = lm(price_per_area ~ ., data = real_estate %>% select(-cluster, -date))
+old.par <- par(mfrow=c(2,2))
+
+summary(reg)
+
+plot(reg)
+
+par(old.par)
+```
+
+As suspected we see that the outliers identified earlier are causing issues with our regression model. The Normal Q-Q plot shows strong non-normality from the outliers, and the scale-location and residuals vs fitted both show large outlier effects. Outliers, generally, bias OLS regression models. We opt to omit these from the sample. 
+
+### Model 1
+
+```{r regression_exploration2}
+real_estate = real_estate %>%
+  slice(-1, -414)
+
+reg = lm(price_per_area ~ ., data = real_estate %>% select(-cluster, -date))
+
+old.par <- par(mfrow=c(2,2))
+
+summary(reg)
+
+plot(reg)
+
+par(old.par)
+
+```
+
+We see that removing these outliers improves the diagnostic plots, improves our adjusted r-squared, and improves the significance on two of our variables. 
+
+We next check for collinearity among predictors, get confidence intervals for predictor coefficients, and we find the prediction and 90% confidence interval for a "new" observation with explanatory variables set to the average of all the observations in our dataset.
+
+```{r collinearity_and_conf_int}
+
+vif(reg)
+
+confint(reg, level = 0.99)
+
+means = real_estate %>%
+  select(-cluster, -date, -price_per_area) %>%
+  summarise_all(tibble::lst(mean))
+
+colnames(means) = colnames(real_estate %>% select(-cluster, -date, -price_per_area))
+
+avg_obs = predict(reg,newdata=means,interval='confidence',level = 0.9)
+avg_obs
+```
+Examining the results from the variance inflation factor calculation we see that the variables are all well below 5. The rule of thumb is that if the VIF exceeds 5 or 10 then this suggests a problem. As the calculated values do not cross this threshold we assume no problems in our model due to collinearity. When we look at the confidence intervals on the predictors we see that none of the confidence intervals include 0 which is to be expected in accordance with the significance levels identified previously. 
+
+We examine where the prediction for this average observation falls relative to the rest of our outcome data.
+
+```{r avg_prediction}
+
+avg_plot = real_estate %>%
+  ggplot(aes(x = price_per_area)) +
+  geom_histogram() +
+  geom_vline(xintercept = avg_obs[1], color = "red") +
+  geom_vline(xintercept = avg_obs[2], color = "red", linetype = "dashed") +
+  geom_vline(xintercept = avg_obs[3], color = "red", linetype = "dashed") 
+
+avg_plot
+
+```
+
+We see that the prediction for the average variable is around the average of the distribution of the outcome variable (```r mean(real_estate$price_per_area)```) which is what we would expect.
+
+We also now explore replacing the latitude and longitude with our neighborhood clusters. 
+
+### Model 2
+
+```{r regression_exploration3}
+
+reg = lm(price_per_area ~ ., data = real_estate %>% select(-lat, -long, -date))
+
+old.par <- par(mfrow=c(2,2))
+
+summary(reg)
+
+plot(reg)
+
+par(old.par)
+
+```
+
+We find a slightly better adj r squared than with the latitude and longitude variables. We see that relative to cluster 1, clusters 2 and 6 seem to have insignificant effects, while clusters 4,7, and 8 have large negative effects. Cluster 3 has a weaker negative effect. Referring back to the graph, this follows a similar urban-rural divide with the exception that there seems to be two "types" of urban in clusters 1,2, and 6, and in cluster 3. We also explore briefly this separation. 
+
+### Model 3
+
+```{r regression_exploration4}
+
+real_estate = real_estate %>%
+  mutate(urban = recode(cluster, "c(1,2,6) = 1; c(4,5,7,8) = 0; c(3) = 2"))
+
+reg = lm(price_per_area ~ ., data = real_estate %>% select(-lat, -long, -date, -cluster))
+
+old.par <- par(mfrow=c(2,2))
+
+summary(reg)
+
+plot(reg)
+
+par(old.par)
+
+```
+
+The adjusted r squared falls slightly but it is still higher than using the latitude and longitude variables.
+
+# Sub-problem 3: choose optimal models by exhaustive, forward and backward selection (20 points)
+
+### Model 1
+
+```{r optimal_models1}
+
+target_data = real_estate %>%
+  select(
+    price_per_area,
+    trans_date,
+    house_age,
+    dist_mrt,
+    num_conven,
+    long,
+    lat
+  )
+
+summaryMetrics <- NULL
+whichAll <- list()
+for ( myMthd in c("exhaustive", "backward", "forward", "seqrep") ) {
+  rsRes <- regsubsets(price_per_area~.,target_data,method=myMthd,nvmax=6)
+  summRes <- summary(rsRes)
+  whichAll[[myMthd]] <- summRes$which
+  for ( metricName in c("rsq","rss","adjr2","cp","bic") ) {
+    summaryMetrics <- rbind(summaryMetrics,
+      data.frame(method=myMthd,metric=metricName,
+                nvars=1:length(summRes[[metricName]]),
+                value=summRes[[metricName]]))
+  }
+}
+ggplot(summaryMetrics,aes(x=nvars,y=value,shape=method,colour=method)) + geom_path() + geom_point() + facet_wrap(~metric,scales="free") +   theme(legend.position="top")+theme_bw()
+
+```
+
+Apart from odd behavior on the seqrep method, we seen consistent model selection from the exhuastive, backward, and forward selection methods for the optimal model. We see that our primary metrics for model comparison (adjr2, cp, and bic) continue to improve as we add variables to the models suggesting that all variables are adding useful information. 
+
+We also do the same analysis for the cluster approach.
+
+### Model 2
+
+```{r optimal_models2}
+
+target_data = real_estate %>%
+  select(
+    price_per_area,
+    trans_date,
+    house_age,
+    dist_mrt,
+    num_conven,
+    cluster
+  )
+
+summaryMetrics <- NULL
+whichAll <- list()
+for ( myMthd in c("exhaustive", "backward", "forward", "seqrep") ) {
+  rsRes <- regsubsets(price_per_area~.,target_data,method=myMthd,nvmax=11)
+  summRes <- summary(rsRes)
+  whichAll[[myMthd]] <- summRes$which
+  for ( metricName in c("rsq","rss","adjr2","cp","bic") ) {
+    summaryMetrics <- rbind(summaryMetrics,
+      data.frame(method=myMthd,metric=metricName,
+                nvars=1:length(summRes[[metricName]]),
+                value=summRes[[metricName]]))
+  }
+}
+ggplot(summaryMetrics,aes(x=nvars,y=value,shape=method,colour=method)) + geom_path() + geom_point() + facet_wrap(~metric,scales="free") +   theme(legend.position="top")+theme_bw()
+
+```
+
+We see variations in the optimal model selection here between backward, forward, and seqrep here. The exhaustive selection method seems to follow the backward selection. We see that adjr2, cp, and bic all bottom out and suggest worse models from the addition of the 10th variable. This is likely corresponding to the 2 clusters without significance, the ones most similar to cluster 1. We re-do the analysis for the case where we use 2 urban clusters and 1 rural cluster.
+
+### Model 3
+
+```{r optimal_models3}
+
+target_data = real_estate %>%
+  select(
+    price_per_area,
+    trans_date,
+    house_age,
+    dist_mrt,
+    num_conven,
+    urban
+  )
+
+summaryMetrics <- NULL
+whichAll <- list()
+for ( myMthd in c("exhaustive", "backward", "forward", "seqrep") ) {
+  rsRes <- regsubsets(price_per_area~.,target_data,method=myMthd,nvmax=6)
+  summRes <- summary(rsRes)
+  whichAll[[myMthd]] <- summRes$which
+  for ( metricName in c("rsq","rss","adjr2","cp","bic") ) {
+    summaryMetrics <- rbind(summaryMetrics,
+      data.frame(method=myMthd,metric=metricName,
+                nvars=1:length(summRes[[metricName]]),
+                value=summRes[[metricName]]))
+  }
+}
+ggplot(summaryMetrics,aes(x=nvars,y=value,shape=method,colour=method)) + geom_path() + geom_point() + facet_wrap(~metric,scales="free") +   theme(legend.position="top")+theme_bw()
+
+```
+
+The model with 2 urban clusters and 1 rural cluster seems to do the best of all 3. All 4 selection methods agree, and our evaluation metrics are better than the other two variable subsets.
+
+# Sub-problem 4: optimal model by resampling (20 points)
+
+### Model 1
+
+```{r optimal_model_resampling1}
+
+predict.regsubsets <- function (object, newdata, id, ...){
+  form=as.formula(object$call [[2]])
+  mat=model.matrix(form,newdata)
+  coefi=coef(object,id=id)
+  xvars=names (coefi)
+  mat[,xvars] %*% coefi
+}
+
+target_data = real_estate %>%
+  select(
+    price_per_area,
+    trans_date,
+    house_age,
+    dist_mrt,
+    num_conven,
+    long,
+    lat
+  )
+
+dfTmp <- NULL
+whichSum <- array(0,dim=c(6,7,4),
+  dimnames=list(NULL,colnames(model.matrix(price_per_area~.,target_data)),
+      c("exhaustive", "backward", "forward", "seqrep")))
+# Split data into training and test 30 times:
+nTries <- 30
+for ( iTry in 1:nTries ) {
+  bTrain <- sample(rep(c(TRUE,FALSE),length.out=nrow(target_data)))
+  # Try each method available in regsubsets
+  # to select the best model of each size:
+  for ( jSelect in c("exhaustive", "backward", "forward", "seqrep") ) {
+    rsTrain <- regsubsets(price_per_area~.,target_data[bTrain,],nvmax=6,method=jSelect)
+    # Add up variable selections:
+    whichSum[,,jSelect] <- whichSum[,,jSelect] + summary(rsTrain)$which
+    # Calculate test error for each set of variables
+    # using predict.regsubsets implemented above:
+    for ( kVarSet in 1:6 ) {
+      # make predictions:
+      testPred <- predict(rsTrain,target_data[!bTrain,],id=kVarSet)
+      # calculate MSE:
+      mseTest <- mean((testPred-target_data[!bTrain,"price_per_area"])^2 %$% price_per_area)
+      # add to data.frame for future plotting:
+      dfTmp <- rbind(dfTmp,data.frame(sim=iTry,sel=jSelect,vars=kVarSet,
+      mse=c(mseTest,summary(rsTrain)$rss[kVarSet]/sum(bTrain)),trainTest=c("test","train")))
+    }
+  }
+}
+# plot MSEs by training/test, number of 
+# variables and selection method:
+ggplot(dfTmp,aes(x=factor(vars),y=mse,colour=sel)) + geom_boxplot()+facet_wrap(~trainTest)+theme_bw()
+```
+
+### Model 2
+
+In line with what we saw in the model selection process using regsubsets, the model with all variables does the best on the test and train data, so we do not have an overfitting problem. What's more, the difference in the errors in quite small so we are doing quite well in cross-validating the model. We now repeat with the two clustering cases. 
+
+```{r optimal_model_resampling2}
+
+target_data = real_estate %>%
+  select(
+    price_per_area,
+    trans_date,
+    house_age,
+    dist_mrt,
+    num_conven,
+    cluster
+  )
+
+dfTmp <- NULL
+whichSum <- array(0,dim=c(11,12,4),
+  dimnames=list(NULL,colnames(model.matrix(price_per_area~.,target_data)),
+      c("exhaustive", "backward", "forward", "seqrep")))
+# Split data into training and test 30 times:
+nTries <- 30
+for ( iTry in 1:nTries ) {
+  bTrain <- sample(rep(c(TRUE,FALSE),length.out=nrow(target_data)))
+  # Try each method available in regsubsets
+  # to select the best model of each size:
+  for ( jSelect in c("exhaustive", "backward", "forward", "seqrep") ) {
+    rsTrain <- regsubsets(price_per_area~.,target_data[bTrain,],nvmax=11,method=jSelect)
+    # Add up variable selections:
+    whichSum[,,jSelect] <- whichSum[,,jSelect] + summary(rsTrain)$which
+    # Calculate test error for each set of variables
+    # using predict.regsubsets implemented above:
+    for ( kVarSet in 1:11 ) {
+      # make predictions:
+      testPred <- predict(rsTrain,target_data[!bTrain,],id=kVarSet)
+      # calculate MSE:
+      mseTest <- mean((testPred-target_data[!bTrain,"price_per_area"])^2 %$% price_per_area)
+      # add to data.frame for future plotting:
+      dfTmp <- rbind(dfTmp,data.frame(sim=iTry,sel=jSelect,vars=kVarSet,
+      mse=c(mseTest,summary(rsTrain)$rss[kVarSet]/sum(bTrain)),trainTest=c("test","train")))
+    }
+  }
+}
+# plot MSEs by training/test, number of 
+# variables and selection method:
+ggplot(dfTmp,aes(x=factor(vars),y=mse,colour=sel)) + geom_boxplot()+facet_wrap(~trainTest)+theme_bw()
+
+```
+
+The cross-validation performance on this model is not so great. There are a lot of outliers and the minimum error on the test set seems to be around the 0.03 mark of the previous model's best error. There also seems to be a little bit of overfitting on the models with 10 and 11 variables as was suggested in the previous adjr2, cp, and bic analysis. 
+
+### Model 3
+
+```{r optimal_model_resampling3}
+
+target_data = real_estate %>%
+  select(
+    price_per_area,
+    trans_date,
+    house_age,
+    dist_mrt,
+    num_conven,
+    urban
+  )
+
+dfTmp <- NULL
+whichSum <- array(0,dim=c(6,7,4),
+  dimnames=list(NULL,colnames(model.matrix(price_per_area~.,target_data)),
+      c("exhaustive", "backward", "forward", "seqrep")))
+# Split data into training and test 30 times:
+nTries <- 30
+for ( iTry in 1:nTries ) {
+  bTrain <- sample(rep(c(TRUE,FALSE),length.out=nrow(target_data)))
+  # Try each method available in regsubsets
+  # to select the best model of each size:
+  for ( jSelect in c("exhaustive", "backward", "forward", "seqrep") ) {
+    rsTrain <- regsubsets(price_per_area~.,target_data[bTrain,],nvmax=6,method=jSelect)
+    # Add up variable selections:
+    whichSum[,,jSelect] <- whichSum[,,jSelect] + summary(rsTrain)$which
+    # Calculate test error for each set of variables
+    # using predict.regsubsets implemented above:
+    for ( kVarSet in 1:6 ) {
+      # make predictions:
+      testPred <- predict(rsTrain,target_data[!bTrain,],id=kVarSet)
+      # calculate MSE:
+      mseTest <- mean((testPred-target_data[!bTrain,"price_per_area"])^2 %$% price_per_area)
+      # add to data.frame for future plotting:
+      dfTmp <- rbind(dfTmp,data.frame(sim=iTry,sel=jSelect,vars=kVarSet,
+      mse=c(mseTest,summary(rsTrain)$rss[kVarSet]/sum(bTrain)),trainTest=c("test","train")))
+    }
+  }
+}
+# plot MSEs by training/test, number of 
+# variables and selection method:
+ggplot(dfTmp,aes(x=factor(vars),y=mse,colour=sel)) + geom_boxplot()+facet_wrap(~trainTest)+theme_bw()
+
+```
+
+This variable subset does fairly well. It has a lower training error than the first model with latitude and longitude but a similar (almost identical) minimum test error. The results here agree with the previous adjr2, bic, cp, analysis but disagree somewhat on what is suggested by the test error. The previous analysis suggested this model might be better than the latitude and longitude model but this analysis suggests that the two models are about equivalent for this dataset. 
+
+# Sub-problem 5: variable selection by lasso (15 points)
+
+### Model 1
+
+```{r lasso_analysis1}
+
+target_data = real_estate %>%
+  select(
+    price_per_area,
+    trans_date,
+    house_age,
+    dist_mrt,
+    num_conven,
+    long,
+    lat
+  ) %>%
+  mutate_all(scale)
+
+x <- model.matrix(price_per_area~.,target_data)[,-1]
+y = target_data$price_per_area
+
+lassoRes <- glmnet(x,y,alpha=1)
+plot(lassoRes, xvar = "lambda")
+
+cvLassoRes <- cv.glmnet(x,y,alpha=1)
+plot(cvLassoRes)
+
+predict(lassoRes,type="coefficients",s=cvLassoRes$lambda.min)
+
+predict(lassoRes,type="coefficients",s=cvLassoRes$lambda.1se)
+
+predict(lassoRes,type="coefficients",s=0.4)
+
+predict(lassoRes,type="coefficients",s=0.25)
+
+```
+
+To do the lasso analysis we scale the variables so that the coefficients are more evenly weighted in the model. When we examine the lasso selection on the variables we see confirmation as before in the regsubsets and resampling validation that the lowest cross-validation error occurs with all 6 variables included in the model. The lasso model selects two variables as being very important within the first order of magnitude of lambda. These variables are the distance from the MRT station and the latitude of the house. We see that the trans_date variable is not picked up in the first 4 most important variables by the lasso regularization, which is in line with the low predictive power we saw when exploring the variable.
+
+### Model 2
+
+```{r lasso_analysis2}
+
+target_data = real_estate %>%
+  select(
+    price_per_area,
+    trans_date,
+    house_age,
+    dist_mrt,
+    num_conven
+  ) %>%
+  mutate_all(scale) %>%
+  mutate(cluster = real_estate$cluster)
+
+x <- model.matrix(price_per_area~.,target_data)[,-1]
+y = target_data$price_per_area
+
+lassoRes <- glmnet(x,y,alpha=1)
+plot(lassoRes, xvar = "lambda")
+
+cvLassoRes <- cv.glmnet(x,y,alpha=1)
+plot(cvLassoRes)
+
+predict(lassoRes,type="coefficients",s=cvLassoRes$lambda.min)
+
+predict(lassoRes,type="coefficients",s=cvLassoRes$lambda.1se)
+
+predict(lassoRes,type="coefficients",s=0.2)
+
+predict(lassoRes,type="coefficients",s=0.24)
+
+```
+
+We scale the variables as in the previous lasso analysis. The lasso analysis in this subset of variables is different from the regsubsets and resampling validation methods. The lasso model selects all the variables for obtaining the lowest cross-validation error, unlike the previous methods which selected 9 variables. We see that here too trans_date is not among the first 4 variables to be selected. 
+
+### Model 3
+```{r lasso_analysis3}
+
+target_data = real_estate %>%
+  select(
+    price_per_area,
+    trans_date,
+    house_age,
+    dist_mrt,
+    num_conven
+  ) %>%
+  mutate_all(scale) %>%
+  mutate(urban = real_estate$urban)
+
+x <- model.matrix(price_per_area~.,target_data)[,-1]
+y = target_data$price_per_area
+
+lassoRes <- glmnet(x,y,alpha=1)
+plot(lassoRes, xvar = "lambda")
+
+cvLassoRes <- cv.glmnet(x,y,alpha=1)
+plot(cvLassoRes)
+
+predict(lassoRes,type="coefficients",s=cvLassoRes$lambda.min)
+
+predict(lassoRes,type="coefficients",s=cvLassoRes$lambda.1se)
+
+predict(lassoRes,type="coefficients",s=0.2)
+
+predict(lassoRes,type="coefficients",s=0.3)
+
+```
+
+We scale the variables for the lasso analysis as before. We see that the lasso cross validation selects all 6 variables as the other validation methods have done. We see again that date is not among the top 4 variables chosen by the lasso regularization. It seems that in all cases, the location of the house is more important than the age of the house as determined by the lasso regularization. 
+
+# Discussion
+In the analysis of the various models we used in the prediction problem for determining the price per unit area of a house in several locations in Taiwan, we found that all 3 models did around the same. However, after visualizing the geographic data we saw that the way the data is spread, the latitude effectively measures the proximity of a house to the urban area pictured in the visualization. In a more general dataset where the distribution of housing is less easily separable by latitude, I believe the clustering method would be much more effective at predicting the price per unit area than the latitude and longitude approach. 
+
+One assumption we made during the exploration phase was that the date variable would not be meaningful in the regression but in our various cross-validation exploration we find that the various regression models do put weight on the date variable. To address this we look at the change in the error term when we omit the date variable on Model 3.
+
+## Discussion Analysis Extension
+
+```{r discussion_extension}
+
+target_data = real_estate %>%
+  select(
+    price_per_area,
+    house_age,
+    dist_mrt,
+    num_conven,
+    urban
+  )
+
+dfTmp <- NULL
+whichSum <- array(0,dim=c(5,6,4),
+  dimnames=list(NULL,colnames(model.matrix(price_per_area~.,target_data)),
+      c("exhaustive", "backward", "forward", "seqrep")))
+# Split data into training and test 30 times:
+nTries <- 30
+for ( iTry in 1:nTries ) {
+  bTrain <- sample(rep(c(TRUE,FALSE),length.out=nrow(target_data)))
+  # Try each method available in regsubsets
+  # to select the best model of each size:
+  for ( jSelect in c("exhaustive", "backward", "forward", "seqrep") ) {
+    rsTrain <- regsubsets(price_per_area~.,target_data[bTrain,],nvmax=5,method=jSelect)
+    # Add up variable selections:
+    whichSum[,,jSelect] <- whichSum[,,jSelect] + summary(rsTrain)$which
+    # Calculate test error for each set of variables
+    # using predict.regsubsets implemented above:
+    for ( kVarSet in 1:5 ) {
+      # make predictions:
+      testPred <- predict(rsTrain,target_data[!bTrain,],id=kVarSet)
+      # calculate MSE:
+      mseTest <- mean((testPred-target_data[!bTrain,"price_per_area"])^2 %$% price_per_area)
+      # add to data.frame for future plotting:
+      dfTmp <- rbind(dfTmp,data.frame(sim=iTry,sel=jSelect,vars=kVarSet,
+      mse=c(mseTest,summary(rsTrain)$rss[kVarSet]/sum(bTrain)),trainTest=c("test","train")))
+    }
+  }
+}
+# plot MSEs by training/test, number of 
+# variables and selection method:
+ggplot(dfTmp,aes(x=factor(vars),y=mse,colour=sel)) + geom_boxplot()+facet_wrap(~trainTest)+theme_bw()
+
+reg_no_date = summary(lm(price_per_area ~ ., data = target_data))
+
+
+target_data = real_estate %>%
+  select(
+    price_per_area,
+    trans_date,
+    house_age,
+    dist_mrt,
+    num_conven,
+    urban
+  )
+
+reg_date = summary(lm(price_per_area ~ ., data = target_data))
+
+increase = round((reg_no_date$sigma - reg_date$sigma)/reg_date$sigma * 100, 2)
+
+reg_date
+
+reg_no_date
+
+```
+
+The two model summaries presented above are in order: regression model 3 with the transaction date and regression model 3 without the transaction date. We see that the increase in the residual standard error is only ```r increase``` percent. Given that we see very low correlation with the outcome variable both graphically and numerically I believe we should avoid including the varible in the final model until we can obtain more data over a longer period of time. There may be some cyclical effects based on the time of year, such as if there is a typical "moving season" where demand is higher than other points in the year, and in such a case then some type of date modeling would be prudent but without this additional information and given the low additional explanatory power of the date variable, shown here numerically and demonstrated as one of the last variables to be included by the lasso regularization, it does not seem wise to build our final model with this variable.
