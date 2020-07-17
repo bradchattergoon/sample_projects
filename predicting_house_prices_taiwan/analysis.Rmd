@@ -1,8 +1,10 @@
 ---
 title: "Analysis"
 output:
+  pdf_document:
+    toc: yes
   html_document:
-    toc: true
+    toc: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -142,8 +144,20 @@ corr = cor(real_estate %>%
                lat,
                long
              ), method = "pearson")
-colnames(corr) = c("House Age", "Dist to MRT", "Number of Conv", "Price per Area", "Date", "Latitude", "Longitude")
-rownames(corr) = c("House Age", "Dist to MRT", "Number of Conv", "Price per Area", "Date", "Latitude", "Longitude")
+colnames(corr) = c("House Age", 
+                   "Dist to MRT", 
+                   "Number of Conv", 
+                   "Price per Area", 
+                   "Date", 
+                   "Latitude", 
+                   "Longitude")
+rownames(corr) = c("House Age", 
+                   "Dist to MRT", 
+                   "Number of Conv", 
+                   "Price per Area", 
+                   "Date", 
+                   "Latitude", 
+                   "Longitude")
 
 corrplot(corr,
          type = "full",
@@ -174,8 +188,20 @@ corr = cor(real_estate %>%
                lat = log(1 + lat),
                long = log(1 + long)
              ), method = "pearson")
-colnames(corr) = c("House Age", "Dist to MRT", "Number of Conv", "Price per Area", "Date", "Latitude", "Longitude")
-rownames(corr) = c("House Age", "Dist to MRT", "Number of Conv", "Price per Area", "Date", "Latitude", "Longitude")
+colnames(corr) = c("House Age", 
+                   "Dist to MRT", 
+                   "Number of Conv", 
+                   "Price per Area", 
+                   "Date", 
+                   "Latitude", 
+                   "Longitude")
+rownames(corr) = c("House Age", 
+                   "Dist to MRT", 
+                   "Number of Conv", 
+                   "Price per Area", 
+                   "Date", 
+                   "Latitude", 
+                   "Longitude")
 
 corrplot(corr,
          type = "full",
@@ -374,7 +400,12 @@ for ( myMthd in c("exhaustive", "backward", "forward", "seqrep") ) {
                 value=summRes[[metricName]]))
   }
 }
-ggplot(summaryMetrics,aes(x=nvars,y=value,shape=method,colour=method)) + geom_path() + geom_point() + facet_wrap(~metric,scales="free") +   theme(legend.position="top")+theme_bw()
+ggplot(summaryMetrics,aes(x=nvars,y=value,shape=method,colour=method)) + 
+  geom_path() + 
+  geom_point() + 
+  facet_wrap(~metric,scales="free") +   
+  theme(legend.position="top") +
+  theme_bw()
 
 ```
 
@@ -409,7 +440,12 @@ for ( myMthd in c("exhaustive", "backward", "forward", "seqrep") ) {
                 value=summRes[[metricName]]))
   }
 }
-ggplot(summaryMetrics,aes(x=nvars,y=value,shape=method,colour=method)) + geom_path() + geom_point() + facet_wrap(~metric,scales="free") +   theme(legend.position="top")+theme_bw()
+ggplot(summaryMetrics,aes(x=nvars,y=value,shape=method,colour=method)) + 
+  geom_path() + 
+  geom_point() + 
+  facet_wrap(~metric,scales="free") +   
+  theme(legend.position="top") +
+  theme_bw()
 
 ```
 
@@ -442,7 +478,12 @@ for ( myMthd in c("exhaustive", "backward", "forward", "seqrep") ) {
                 value=summRes[[metricName]]))
   }
 }
-ggplot(summaryMetrics,aes(x=nvars,y=value,shape=method,colour=method)) + geom_path() + geom_point() + facet_wrap(~metric,scales="free") +   theme(legend.position="top")+theme_bw()
+ggplot(summaryMetrics,aes(x=nvars,y=value,shape=method,colour=method)) + 
+  geom_path() + 
+  geom_point() + 
+  facet_wrap(~metric,scales="free") +   
+  theme(legend.position="top")+
+  theme_bw()
 
 ```
 
@@ -502,7 +543,10 @@ for ( iTry in 1:nTries ) {
 }
 # plot MSEs by training/test, number of 
 # variables and selection method:
-ggplot(dfTmp,aes(x=factor(vars),y=mse,colour=sel)) + geom_boxplot()+facet_wrap(~trainTest)+theme_bw()
+ggplot(dfTmp,aes(x=factor(vars),y=mse,colour=sel)) +
+  geom_boxplot() +
+  facet_wrap(~trainTest) +
+  theme_bw()
 ```
 
 ### Model 2
@@ -550,7 +594,10 @@ for ( iTry in 1:nTries ) {
 }
 # plot MSEs by training/test, number of 
 # variables and selection method:
-ggplot(dfTmp,aes(x=factor(vars),y=mse,colour=sel)) + geom_boxplot()+facet_wrap(~trainTest)+theme_bw()
+ggplot(dfTmp,aes(x=factor(vars),y=mse,colour=sel)) +
+  geom_boxplot() +
+  facet_wrap(~trainTest) +
+  theme_bw()
 
 ```
 
@@ -599,7 +646,10 @@ for ( iTry in 1:nTries ) {
 }
 # plot MSEs by training/test, number of 
 # variables and selection method:
-ggplot(dfTmp,aes(x=factor(vars),y=mse,colour=sel)) + geom_boxplot()+facet_wrap(~trainTest)+theme_bw()
+ggplot(dfTmp,aes(x=factor(vars),y=mse,colour=sel)) +
+  geom_boxplot() +
+  facet_wrap(~trainTest) +
+  theme_bw()
 
 ```
 
