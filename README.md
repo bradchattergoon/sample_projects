@@ -9,3 +9,6 @@ This project was from a midterm assignment in the Harvard Statistical Learning c
 
 ## predoctoral_labor_market
 This is a project intended to pull out some basic information from text documents advertising "predoctoral" research assistant positions in economics. The goal of the project was to get some quantitative context for qualitatively valuable skills in this labor market. The analysis was done in Python with a Jupyter Notebook.
+
+## uber_skills_test
+This project is a response to Uber’s Skills Test for a Data Scientist position with their Research and Economics: Special Projects team. The ask was to model the long term trend of the login data and to describe and discuss any other insights from the data. The analysis was done in R.
