@@ -1,5 +1,5 @@
 # sample_projects
-Sample projects for displaying programming skills.
+Sample projects for displaying programming and data science skills.
 
 ## evaluate_competitive_bidding_caltrans
 This project uses Caltrans project data to evaluate whether there may be non-competitive bidding behavior in the auction for Caltrans projects. The analysis is done in R. 
