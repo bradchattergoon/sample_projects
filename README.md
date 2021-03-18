@@ -12,3 +12,6 @@ This is a project intended to pull out some basic information from text document
 
 ## uber_skills_test
 This project is a response to Uber’s Skills Test for a Data Scientist position with their Research and Economics: Special Projects team. The ask was to model the long term trend of the login data and to describe and discuss any other insights from the data. The analysis was done in R.
+
+## tinder_skills_test
+This project is a response to Tinder’s Skills Test for a Data Science position at the company. The provided dataset includes information on user data on the app including demographic information as well as several features about their interactions on the app like the number of swipes sent, the number of like received, etc. The prompt asks to “to explore, analyze, and tell a story using the attached data.” My analysis examines the effect of age and gender on the experience of users on the app. The analysis was done in R.
