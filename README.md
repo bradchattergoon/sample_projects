@@ -15,3 +15,6 @@ This project is a response to Uber’s Skills Test for a Data Scientist position
 
 ## tinder_skills_test
 This project is a response to Tinder’s Skills Test for a Data Science position at the company. The provided dataset includes information on user data on the app including demographic information as well as several features about their interactions on the app like the number of swipes sent, the number of like received, etc. The prompt asks to “to explore, analyze, and tell a story using the attached data.” My analysis examines the effect of age and gender on the experience of users on the app. The analysis was done in R.
+
+## whosin_mockups
+WhosIn was a startup project I worked on designed to solve the coordinating frictions associated with planning events with friends. The screenshots here are mockups that represent the assets and core app features at the time of launch. I built the app using Swift in Xcode during 2016-2017 and placed it on the iOS App Store. The design and coding are my original work. 
