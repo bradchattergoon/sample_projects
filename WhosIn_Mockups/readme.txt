@@ -1,0 +1,1 @@
+WhosIn was a startup project I worked on designed to solve the coordinating frictions associated with planning events with friends. The screenshots here are mockups that represent the assets and core app features at the time of launch. I built the app using Swift in Xcode during 2016-2017 and placed it on the iOS App Store. The design and coding are my original work. 
