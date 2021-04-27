@@ -1,3 +1,3 @@
 This project is a response to Tinder’s Skills Test for a Data Science position at the company. The provided dataset includes information on user data on the app including demographic information as well as several features about their interactions on the app like the number of swipes sent, the number of like received, etc. The prompt asks to “to explore, analyze, and tell a story using the attached data.” My analysis examines the effect of age and gender on the experience of users on the app. 
 
-The analysis was done in an R markdown file and a PDF of the results is attached. 
+The analysis was done in an R markdown file and a PDF of the results is attached (BradChattergoon.pdf). 
