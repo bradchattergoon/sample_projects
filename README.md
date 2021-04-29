@@ -1,5 +1,7 @@
 # sample_projects
-Sample projects for displaying programming and data science skills. I recommend viewing the Tinder or Uber Skills Test results for a Business Analyst role.
+Sample projects for displaying programming and data science skills. 
+For Business Analyst Roles I recommend the Tinder Skills Test.
+For Data Science Roles I recommend the Uber Skills Test.
 
 ## evaluate_competitive_bidding_caltrans
 This project uses Caltrans project data to evaluate whether there may be non-competitive bidding behavior in the auction for Caltrans projects. The analysis is done in R. 
