@@ -2,6 +2,10 @@
 Sample projects for displaying programming and data science skills. 
 For Business Analyst Roles I recommend the Tinder Skills Test.
 For Data Science Roles I recommend the Uber Skills Test.
+For Data Analyst/Engineering Roles I recommend the Working with Payments Data Project.
+
+## working_with_payments_data
+This short project examines the logic of how to allocate a series of payments transactions to a series of invoice/charge records in both Python and SQL, and how that logic differs. It is accompanied by an article exploring the logic in detail published in the Better Programming publication on Medium which you can find [here](https://medium.com/better-programming/working-with-payments-data-in-python-and-sql-44439a701a6b).
 
 ## evaluate_competitive_bidding_caltrans
 This project uses Caltrans project data to evaluate whether there may be non-competitive bidding behavior in the auction for Caltrans projects. The analysis is done in R. 
