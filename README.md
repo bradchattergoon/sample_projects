@@ -1,6 +1,6 @@
 # sample_projects
 Sample projects for displaying programming and data science skills. 
-For Business Analyst Roles I recommend the Tinder Skills Test.
+For Business/Product Analyst Roles I recommend the Tinder Skills Test.
 For Data Science Roles I recommend the Uber Skills Test.
 For Data Analyst/Engineering Roles I recommend the Working with Payments Data Project.
 
